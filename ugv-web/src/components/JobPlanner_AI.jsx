@@ -197,6 +197,21 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
         const K = speedMin > 0 ? (sprayRate / speedMin) : 0; // Liters per meter
 
         if (refillStrategy === "midrow") {
+            // Add initial refill at start point
+            const firstSeg = generatedSegments.find(s => s.type === "work");
+            if (firstSeg && firstSeg.points && firstSeg.points.length >= 2) {
+                const startPt = firstSeg.points[0];
+                refills.push({
+                    lat: startPt[0] ?? startPt.lat,
+                    lng: startPt[1] ?? startPt.lng,
+                    index: 1,
+                    refillAmount: tankCapacity,
+                    isHeadland: false,
+                    isStartPoint: true
+                });
+                currentWater = tankCapacity;
+            }
+
             // Mid-row depletion strategy: refill exactly where the water runs out
             generatedSegments.forEach((segment) => {
                 const isSpraying = segment.type === "work";
@@ -275,6 +290,21 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                 };
             });
 
+            // Add initial refill at the start of first row
+            const firstRow = rows[0];
+            const firstPts = firstRow.points;
+            if (firstPts && firstPts.length >= 2) {
+                refills.push({
+                    lat: firstPts[0][0] ?? firstPts[0].lat,
+                    lng: firstPts[0][1] ?? firstPts[0].lng,
+                    index: 1,
+                    refillAmount: tankCapacity,
+                    isHeadland: true,
+                    isStartPoint: true
+                });
+                currentWater = tankCapacity;
+            }
+
             for (let j = 0; j < rows.length; j++) {
                 const row = rows[j];
                 const pts = row.points;
@@ -282,7 +312,8 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
 
                 const isStartOnStartingSide = (j % 2 === 0);
 
-                if (isStartOnStartingSide) {
+                // Only check starting side refill for j > 0 (since j = 0 is handled by the initial fill)
+                if (isStartOnStartingSide && j > 0) {
                     const nextRowWater = (j + 1 < rows.length) ? rows[j + 1].waterNeeded : 0;
                     const waterNeededToNextVisit = row.waterNeeded + nextRowWater;
 
@@ -1563,9 +1594,18 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                         >
                             <Popup>
                                 <div style={{ fontSize: "12px", lineHeight: 1.4 }}>
-                                    <strong style={{ color: "#2563eb" }}>💧 จุดเติมน้ำยาที่ {pt.index} (หัวแปลง)</strong><br />
-                                    <span>ปริมาณที่ต้องเติมเพิ่ม: <strong style={{ color: "#2563eb" }}>{pt.refillAmount} ลิตร</strong></span><br />
-                                    <span style={{ color: "#9ca3af", fontSize: "11px" }}>(เติมเพิ่มเพื่อกลับสู่ความจุเต็มถัง {tankCapacity} ลิตร)</span>
+                                    {pt.isStartPoint ? (
+                                        <>
+                                            <strong style={{ color: "#10b981" }}>💧 จุดเริ่มต้นพ่นยา (เตรียมน้ำยาเต็มถัง)</strong><br />
+                                            <span>ปริมาณที่ต้องใส่: <strong style={{ color: "#10b981" }}>{tankCapacity} ลิตร</strong></span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <strong style={{ color: "#2563eb" }}>💧 จุดเติมน้ำยาที่ {pt.index} {pt.isHeadland ? "(หัวแปลง)" : "(ระหว่างทาง)"}</strong><br />
+                                            <span>ปริมาณที่ต้องเติมเพิ่ม: <strong style={{ color: "#2563eb" }}>{pt.refillAmount} ลิตร</strong></span><br />
+                                            <span style={{ color: "#9ca3af", fontSize: "11px" }}>(เติมเพิ่มเพื่อกลับสู่ความจุเต็มถัง {tankCapacity} ลิตร)</span>
+                                        </>
+                                    )}
                                 </div>
                             </Popup>
                         </Marker>
