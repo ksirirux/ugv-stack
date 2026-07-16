@@ -183,9 +183,9 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
     }, [generatedSegments]);
 
     const maxRowWaterNeeded = speedMin > 0 ? (maxRowLength * sprayRate / speedMin) : 0;
-    const hasWaterDeficitWarning = maxRowWaterNeeded > tankCapacity;
+    const hasWaterDeficitWarning = maxRowWaterNeeded > (tankCapacity * 0.90);
 
-    // Calculate exact refill coordinates (based on refillStrategy)
+    // Calculate exact refill coordinates (based on refillStrategy, enforcing 10% min safety buffer)
     useEffect(() => {
         if (generatedSegments.length === 0) {
             setRefillPoints([]);
@@ -195,6 +195,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
         const refills = [];
         let currentWater = tankCapacity;
         const K = speedMin > 0 ? (sprayRate / speedMin) : 0; // Liters per meter
+        const minWater = tankCapacity * 0.10; // 10% safety buffer to protect the pump
 
         if (refillStrategy === "midrow") {
             // Add initial refill at start point
@@ -212,7 +213,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                 currentWater = tankCapacity;
             }
 
-            // Mid-row depletion strategy: refill exactly where the water runs out
+            // Mid-row depletion strategy: refill exactly when water hits the 10% buffer
             generatedSegments.forEach((segment) => {
                 const isSpraying = segment.type === "work";
                 const pts = segment.points;
@@ -237,12 +238,13 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
 
                     while (remainingStepDist > 0) {
                         const waterNeeded = remainingStepDist * K;
+                        const usableWater = currentWater - minWater;
 
-                        if (currentWater >= waterNeeded) {
+                        if (usableWater >= waterNeeded) {
                             currentWater -= waterNeeded;
                             remainingStepDist = 0;
                         } else {
-                            const travelFraction = currentWater / waterNeeded;
+                            const travelFraction = Math.max(0, usableWater / waterNeeded);
                             const distToEmpty = remainingStepDist * travelFraction;
 
                             const lastLat = currentPos[0];
@@ -254,7 +256,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                                 lat: latEmpty,
                                 lng: lngEmpty,
                                 index: refills.length + 1,
-                                refillAmount: parseFloat(tankCapacity.toFixed(1)), // Ran completely empty
+                                refillAmount: parseFloat((tankCapacity - minWater).toFixed(1)), // Refilled from 10% back to full
                                 isHeadland: false
                             });
 
@@ -266,7 +268,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                 }
             });
         } else {
-            // Headland lookahead strategy (only on starting side)
+            // Headland lookahead strategy (only on starting side, respecting 10% buffer)
             const workSegments = generatedSegments.filter(s => s.type === "work");
             if (workSegments.length === 0) {
                 setRefillPoints([]);
@@ -317,7 +319,8 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                     const nextRowWater = (j + 1 < rows.length) ? rows[j + 1].waterNeeded : 0;
                     const waterNeededToNextVisit = row.waterNeeded + nextRowWater;
 
-                    if (currentWater < waterNeededToNextVisit) {
+                    // Refill if usable water drops below the water needed to return
+                    if (currentWater - minWater < waterNeededToNextVisit) {
                         const startPt = pts[0];
                         const refillAmount = tankCapacity - currentWater;
                         refills.push({
@@ -331,7 +334,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                     }
                 }
 
-                currentWater = Math.max(0, currentWater - row.waterNeeded);
+                currentWater = Math.max(minWater, currentWater - row.waterNeeded);
 
                 const isEndOnStartingSide = (j % 2 !== 0);
 
@@ -340,7 +343,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                     const nextNextRowWater = (j + 2 < rows.length) ? rows[j + 2].waterNeeded : 0;
                     const waterNeededToNextVisit = nextRowWater + nextNextRowWater;
 
-                    if (currentWater < waterNeededToNextVisit && nextRowWater > 0) {
+                    if (currentWater - minWater < waterNeededToNextVisit && nextRowWater > 0) {
                         const endPt = pts[pts.length - 1];
                         const refillAmount = tankCapacity - currentWater;
                         refills.push({
@@ -1250,9 +1253,9 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                                     {refillPoints.length} ครั้ง
                                 </strong>
                             </div>
-                            {hasWaterDeficitWarning && refillStrategy === "headland" && (
+                            {hasWaterDeficitWarning && (
                                 <div style={{ color: "#f87171", fontSize: "11px", marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed rgba(248, 113, 113, 0.3)", lineHeight: 1.4 }}>
-                                    ⚠️ <strong>คำเตือน:</strong> มีแถวที่ยาวเกินความจุถัง (ต้องการสูงสุด {maxRowWaterNeeded.toFixed(1)} ลิตร ในแถวเดียว) ทำให้เติมเพียงหัวแปลงฝั่งเดียวไม่พอ และจะยังคงหมดระหว่างทางในแถวนั้น
+                                    ⚠️ <strong>น้ำยาไม่พอในแถว:</strong> มีแถวที่ต้องการสูงสุด {maxRowWaterNeeded.toFixed(1)} ลิตร เกินความจุใช้งานถังยา (สูงสุด {parseFloat((tankCapacity * 0.90).toFixed(1))} ลิตร) <strong>กรุณาลดปริมาณการพ่นลง (Flow Rate)</strong> หรือเพิ่มความเร็วรถ UGV
                                 </div>
                             )}
                         </>
