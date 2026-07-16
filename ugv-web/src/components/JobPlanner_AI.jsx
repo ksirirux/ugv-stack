@@ -185,6 +185,15 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
     const maxRowWaterNeeded = speedMin > 0 ? (maxRowLength * sprayRate / speedMin) : 0;
     const hasWaterDeficitWarning = maxRowWaterNeeded > (tankCapacity * 0.90);
 
+    // Recommend safe flow rate based on longest row and speed
+    const recommendedSprayRate = useMemo(() => {
+        const usableCapacity = tankCapacity * 0.90;
+        if (maxRowLength > 0 && speedMin > 0) {
+            return (usableCapacity * speedMin) / maxRowLength;
+        }
+        return null;
+    }, [maxRowLength, tankCapacity, speedMin]);
+
     // Calculate exact refill coordinates (based on refillStrategy, enforcing 10% min safety buffer)
     useEffect(() => {
         if (generatedSegments.length === 0) {
@@ -1255,7 +1264,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                             </div>
                             {hasWaterDeficitWarning && (
                                 <div style={{ color: "#f87171", fontSize: "11px", marginTop: "6px", paddingTop: "6px", borderTop: "1px dashed rgba(248, 113, 113, 0.3)", lineHeight: 1.4 }}>
-                                    ⚠️ <strong>น้ำยาไม่พอในแถว:</strong> มีแถวที่ต้องการสูงสุด {maxRowWaterNeeded.toFixed(1)} ลิตร เกินความจุใช้งานถังยา (สูงสุด {parseFloat((tankCapacity * 0.90).toFixed(1))} ลิตร) <strong>กรุณาลดปริมาณการพ่นลง (Flow Rate)</strong> หรือเพิ่มความเร็วรถ UGV
+                                    ⚠️ <strong>น้ำยาไม่พอในแถว:</strong> มีแถวที่ต้องการสูงสุด {maxRowWaterNeeded.toFixed(1)} ลิตร เกินความจุใช้งานถังยา ({parseFloat((tankCapacity * 0.90).toFixed(1))} ลิตร) <strong>แนะนำปรับลดอัตราพ่นลงเหลือไม่เกิน {recommendedSprayRate ? recommendedSprayRate.toFixed(1) : 0} L/นาที</strong> (หรือเพิ่มความเร็วรถ UGV)
                                 </div>
                             )}
                         </>
