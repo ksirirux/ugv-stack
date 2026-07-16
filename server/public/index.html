@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UGV Dashboard</title>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+        }
+
+        .container {
+            max-width: 760px;
+            margin: auto;
+        }
+
+        .card {
+            margin-bottom: 16px;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgb(0 0 0 / 8%);
+        }
+
+        .online {
+            color: green;
+        }
+
+        .offline {
+            color: red;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            max-width: 440px;
+        }
+
+        button {
+            min-height: 64px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+
+        .stop {
+            font-weight: bold;
+            background: #e53935;
+            color: white;
+            border: none;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>UGV Dashboard</h1>
+
+        <div class="card">
+            <h2>Connection</h2>
+            <p>
+                Server:
+                <strong id="serverStatus" class="offline">
+                    DISCONNECTED
+                </strong>
+            </p>
+
+            <p>
+                Robot:
+                <strong id="robotStatus" class="offline">
+                    DISCONNECTED
+                </strong>
+            </p>
+        </div>
+
+        <div class="card">
+            <h2>Telemetry</h2>
+            <p>Battery: <span id="battery">--</span></p>
+            <p>Latitude: <span id="latitude">--</span></p>
+            <p>Longitude: <span id="longitude">--</span></p>
+        </div>
+
+        <div class="card">
+            <h2>Manual Control</h2>
+
+            <div class="controls">
+                <div></div>
+                <button onpointerdown="startCommand(0.3, 0)" onpointerup="stopRobot()" onpointerleave="stopRobot()"
+                    onpointercancel="stopRobot()">
+                    Forward
+                </button>
+                <div></div>
+
+                <button onpointerdown="startCommand(0, 0.5)" onpointerup="stopRobot()" onpointerleave="stopRobot()"
+                    onpointercancel="stopRobot()">
+                    Left
+                </button>
+
+                <button class="stop" onclick="stopRobot()">
+                    STOP
+                </button>
+
+                <button onpointerdown="startCommand(0, -0.5)" onpointerup="stopRobot()" onpointerleave="stopRobot()"
+                    onpointercancel="stopRobot()">
+                    Right
+                </button>
+
+                <div></div>
+
+                <button onpointerdown="startCommand(-0.3, 0)" onpointerup="stopRobot()" onpointerleave="stopRobot()"
+                    onpointercancel="stopRobot()">
+                    Reverse
+                </button>
+
+                <div></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Latest Message</h2>
+            <pre id="latestMessage">Waiting...</pre>
+        </div>
+    </div>
+
+    <script>
+        const robotId = "ugv-01";
+        const websocketUrl = `ws://${window.location.host}`;
+
+        let socket = null;
+        let commandTimer = null;
+
+        const serverStatus = document.getElementById("serverStatus");
+        const robotStatus = document.getElementById("robotStatus");
+        const battery = document.getElementById("battery");
+        const latitude = document.getElementById("latitude");
+        const longitude = document.getElementById("longitude");
+        const latestMessage = document.getElementById("latestMessage");
+
+        function setStatus(element, connected) {
+            element.textContent = connected ? "CONNECTED" : "DISCONNECTED";
+            element.className = connected ? "online" : "offline";
+        }
+
+        function connect() {
+            socket = new WebSocket(websocketUrl);
+
+            socket.onopen = () => {
+                setStatus(serverStatus, true);
+
+                socket.send(JSON.stringify({
+                    type: "register",
+                    client: "browser"
+                }));
+            };
+
+            socket.onmessage = (event) => {
+                let message;
+
+                try {
+                    message = JSON.parse(event.data);
+                } catch {
+                    return;
+                }
+
+                latestMessage.textContent =
+                    JSON.stringify(message, null, 2);
+
+                if (
+                    message.type === "robot_status" &&
+                    message.robot_id === robotId
+                ) {
+                    setStatus(robotStatus, message.connected);
+                }
+
+                if (message.type === "robot_list") {
+                    const robot = message.robots.find(
+                        item => item.robot_id === robotId
+                    );
+
+                    setStatus(robotStatus, Boolean(robot?.connected));
+                }
+
+                if (
+                    message.type === "telemetry" &&
+                    message.robot_id === robotId
+                ) {
+                    if (message.battery !== undefined) {
+                        battery.textContent =
+                            Number(message.battery).toFixed(2);
+                    }
+
+                    if (message.latitude !== undefined) {
+                        latitude.textContent = message.latitude;
+                    }
+
+                    if (message.longitude !== undefined) {
+                        longitude.textContent = message.longitude;
+                    }
+                }
+            };
+
+            socket.onclose = () => {
+                setStatus(serverStatus, false);
+                setStatus(robotStatus, false);
+
+                setTimeout(connect, 2000);
+            };
+
+            socket.onerror = () => {
+                socket.close();
+            };
+        }
+
+        function sendCommand(linearX, angularZ) {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                return;
+            }
+
+            socket.send(JSON.stringify({
+                type: "cmd_vel",
+                robot_id: robotId,
+                linear_x: linearX,
+                angular_z: angularZ
+            }));
+        }
+
+        function startCommand(linearX, angularZ) {
+            stopCommandTimer();
+
+            sendCommand(linearX, angularZ);
+
+            commandTimer = setInterval(() => {
+                sendCommand(linearX, angularZ);
+            }, 100);
+        }
+
+        function stopCommandTimer() {
+            if (commandTimer) {
+                clearInterval(commandTimer);
+                commandTimer = null;
+            }
+        }
+
+        function stopRobot() {
+            stopCommandTimer();
+            sendCommand(0, 0);
+        }
+
+        window.addEventListener("blur", stopRobot);
+        window.addEventListener("beforeunload", stopRobot);
+
+        connect();
+    </script>
+</body>
+
+</html>

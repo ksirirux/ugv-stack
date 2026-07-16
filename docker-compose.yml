@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  server:
+    container_name: ugv-server
+    build:
+      context: ./server
+    ports:
+      - "8080:8080"
+    environment:
+      - ROSBRIDGE_URL=ws://192.168.1.129:9090
+      - VISION_API_URL=http://vision-backend:8001
+      # - ROSBRIDGE_URL=ws://host.docker.internal:9090
+    depends_on:
+      - vision-backend
+
+  web:
+    container_name: ugv-web
+    build:
+      context: ./ugv-web
+    ports:
+      - "5175:5175"
+    environment:
+      - BACKEND_URL=http://server:8080
+    volumes:
+      - ./ugv-web:/app
+      - /app/node_modules
+    depends_on:
+      - server
+
+  vision-backend:
+    container_name: ugv-vision-backend
+    build:
+      context: ./ugv_vision_backend_orchard
+    ports:
+      - "8001:8001"
