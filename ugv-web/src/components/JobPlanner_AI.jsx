@@ -1182,7 +1182,9 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                     </div>
 
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ color: "#9ca3af" }}>อัตราฉีดพ่น (Flow Rate):</span>
+                        <span style={{ color: hasWaterDeficitWarning ? "#f87171" : "#9ca3af", fontWeight: hasWaterDeficitWarning ? "bold" : "normal" }}>
+                            อัตราฉีดพ่น (Flow Rate): {hasWaterDeficitWarning && "⚠️"}
+                        </span>
                         <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                             <input
                                 type="number"
@@ -1191,9 +1193,19 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                                 max="50"
                                 value={sprayRate}
                                 onChange={(e) => setSprayRate(Math.max(0.5, parseFloat(e.target.value) || 0))}
-                                style={{ width: "60px", background: "#374151", border: "1px solid #4b5563", borderRadius: "4px", color: "white", padding: "2px 4px", fontSize: "12px", textAlign: "right" }}
+                                style={{
+                                    width: "60px",
+                                    background: "#374151",
+                                    border: hasWaterDeficitWarning ? "1px solid #ef4444" : "1px solid #4b5563",
+                                    boxShadow: hasWaterDeficitWarning ? "0 0 4px rgba(239, 68, 68, 0.4)" : "none",
+                                    borderRadius: "4px",
+                                    color: hasWaterDeficitWarning ? "#f87171" : "white",
+                                    padding: "2px 4px",
+                                    fontSize: "12px",
+                                    textAlign: "right"
+                                }}
                             />
-                            <span style={{ color: "#9ca3af" }}>L/นาที</span>
+                            <span style={{ color: hasWaterDeficitWarning ? "#f87171" : "#9ca3af" }}>L/นาที</span>
                         </div>
                     </div>
 
@@ -1351,6 +1363,52 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
 
             {/* Satellite Map Area */}
             <div className="planner-map" style={{ background: "#ffffff", borderRadius: "12px", overflow: "hidden", position: "relative", boxShadow: "0 4px 16px rgba(0,0,0,0.1)" }}>
+                {hasWaterDeficitWarning && (
+                    <div style={{
+                        position: "absolute",
+                        top: "16px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        zIndex: 1000,
+                        background: "#1e1b4b",
+                        border: "1px solid #ef4444",
+                        borderRadius: "8px",
+                        padding: "10px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "12px",
+                        boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.5)",
+                    }}>
+                        <div style={{ fontSize: "16px" }}>⚠️</div>
+                        <div style={{ color: "#fca5a5", fontSize: "13px", display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <strong>น้ำยาไม่พอสำหรับบางแถวต้นไม้!</strong>
+                            <span>ต้องการสูงสุด {maxRowWaterNeeded.toFixed(1)} ลิตร (แนะนำให้ปรับอัตราพ่นลงไม่เกิน {recommendedSprayRate ? recommendedSprayRate.toFixed(1) : 0} L/นาที)</span>
+                        </div>
+                        <button
+                            onClick={() => {
+                                if (recommendedSprayRate) {
+                                    setSprayRate(parseFloat(recommendedSprayRate.toFixed(1)));
+                                }
+                            }}
+                            style={{
+                                background: "#ef4444",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                padding: "6px 12px",
+                                fontSize: "12px",
+                                fontWeight: "bold",
+                                cursor: "pointer",
+                                transition: "0.2s",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px"
+                            }}
+                        >
+                            <span>ยอมรับและปรับค่า</span>
+                        </button>
+                    </div>
+                )}
                 <MapContainer
                     center={mapCenter}
                     zoom={18}
