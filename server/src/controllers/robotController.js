@@ -20,9 +20,8 @@ export const getRobots = async (req, res) => {
 // Register a new robot
 export const registerRobot = async (req, res) => {
   try {
-    let { robot_id, robot_serial, owner, token, type, yaml: yamlString, robot_name, robot_model, hardware_version } = req.body;
-    console.log("register robot")
-    console.log(req.body)
+    let { robot_id, robot_serial, owner, token,access_token, type, yaml: yamlString, robot_name, robot_model, hardware_version } = req.body;
+    
     let parsedConfig = null;
 
     // If YAML string is provided, parse it
@@ -40,6 +39,7 @@ export const registerRobot = async (req, res) => {
         robot_name = robotConfig.robot_name;
         robot_model = robotConfig.robot_model;
         hardware_version = robotConfig.hardware_version;
+        token = robotConfig.access_token;
         parsedConfig = robotConfig;
         
         // Fallback check
@@ -57,6 +57,7 @@ export const registerRobot = async (req, res) => {
 
     // Generate a secure token if not provided
     const robotToken = token || crypto.randomBytes(16).toString("hex");
+    
 
     const newRobot = new Robot({
       robot_id,
