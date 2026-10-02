@@ -21,6 +21,8 @@ export const getRobots = async (req, res) => {
 export const registerRobot = async (req, res) => {
   try {
     let { robot_id, robot_serial, owner, token, type, yaml: yamlString, robot_name, robot_model, hardware_version } = req.body;
+    console.log("register robot")
+    console.log(req.body)
     let parsedConfig = null;
 
     // If YAML string is provided, parse it
