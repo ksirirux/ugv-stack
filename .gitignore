@@ -7,3 +7,38 @@ dist/
 .vscode/
 .DS_Store
 .gemini/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Archives / backups
+*.zip
+*.tar
+*.tar.gz
+*.archive
+
+# Logs
+*.log
+
+# Runtime data
+mongo-data/
+data/
+
+
+# Runtime generated data
+server/public/paths/
+
+
+# Local backups
+server-windows-backup/
+
+# Runtime generated data
+server/public/paths/
+
+# Local web backup
+ugv-web-windows-backup/
+
+# Local vision backup
+vision-windows-backup/

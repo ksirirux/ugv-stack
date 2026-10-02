@@ -71,7 +71,7 @@ const getRTK = (rtk_status) => {
 
 }
 
-export default function GpsMap({ gps, robotPose, path, laserScan, navigationGoal, onGoalSelected, goalSelectionDisabled }) {
+export default function GpsMap({ gps, robotPose, path, laserScan, navigationGoal, onGoalSelected, goalSelectionDisabled, gpsHistory }) {
   // Default to Bangkok if no GPS
   const defaultCenter = [13.7563, 100.5018];
 
@@ -152,29 +152,26 @@ export default function GpsMap({ gps, robotPose, path, laserScan, navigationGoal
       
       points.push([pointLat, pointLng]);
     });
+    
     return points;
-  }, [gps, laserScan, robotPose, hasGps]);
+  }, [hasGps, laserScan, robotPose, gps]);
 
   return (
-    <div className="map-card">
-      <div className="map-header">
-        <h2>Google Map (Satellite)</h2>
-        <p>Real-time location - RTK:
-          <strong style={{ color: isRtkFixed ? '#16a34a' : '#ca8a04', marginLeft: '6px' }}>
-            {getRTK(gps?.rtk_status) || "UNKNOWN"}
-          </strong>
-        </p>
+    <div className="map-card" style={{ background: '#1f2937', padding: '10px', borderRadius: '8px' }}>
+      <div className="map-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+        <h2>Outdoor GPS Map</h2>
+        <span style={{ color: isRtkFixed ? '#22c55e' : '#eab308', fontWeight: 'bold' }}>
+          RTK: {getRTK(gps?.rtk_status)}
+        </span>
       </div>
 
-      {/* Set padding to 0 and border-radius to match card */}
-      <div className="map-viewport" style={{ padding: 0, overflow: "hidden", position: "relative" }}>
-        <MapContainer
-          center={center}
-          zoom={22}
-          maxZoom={30}
-          style={{ height: "100%", width: "100%", minHeight: "650px", zIndex: 1 }}
+      <div style={{ height: "650px", width: "100%", position: "relative" }}>
+        <MapContainer 
+          center={center} 
+          zoom={19} 
+          scrollWheelZoom={true} 
+          style={{ height: "100%", width: "100%", borderRadius: '6px' }}
         >
-          {/* Google Maps Satellite (Hybrid) Tile Layer */}
           <TileLayer
             url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
             attribution="&copy; Google Maps"
@@ -232,6 +229,13 @@ export default function GpsMap({ gps, robotPose, path, laserScan, navigationGoal
             <Polyline
               positions={polylinePositions}
               pathOptions={{ color: '#eab308', weight: 4, dashArray: '8, 8' }}
+            />
+          )}
+
+          {gpsHistory && gpsHistory.length > 0 && (
+            <Polyline
+              positions={gpsHistory}
+              pathOptions={{ color: '#ec4899', weight: 3, opacity: 0.8 }}
             />
           )}
 

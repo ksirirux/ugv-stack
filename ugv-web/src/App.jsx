@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import "./App.css";
 import GpsMap from "./components/GpsMap";
 import RobotControl from "./components/RobotControl";
@@ -13,7 +13,20 @@ import Dashboard from "./components/Dashboard";
 
 const WEBSOCKET_URL =
   import.meta.env.VITE_WEBSOCKET_URL ??
-  "ws://192.168.1.129:8080";
+  "wss://app.tat-ugv.com";
+
+function getLatLngDistance(lat1, lon1, lat2, lon2) {
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return null;
+  const R = 6371000; // Radius of the earth in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in meters
+}
 
 const ROBOT_ID =
   import.meta.env.VITE_ROBOT_ID ??
@@ -48,6 +61,15 @@ export default function App() {
   const [robotPose, setRobotPose] = useState(null);
   const [navigationGoal, setNavigationGoal] = useState(null);
   const [path, setPath] = useState(null);
+  const [gpsHistory, setGpsHistory] = useState([]);
+  const [nodeStatuses, setNodeStatuses] = useState({
+    wifi: "Offline",
+    imu: "Offline",
+    esp32: "Offline",
+    gps: "Offline",
+    lidar: "Offline",
+    navigation: "Offline"
+  });
 
   const [navigation, setNavigation] = useState({
     status: "idle",
@@ -57,6 +79,25 @@ export default function App() {
     recoveries: null,
     message: "",
   });
+
+  const computedDistanceRemaining = useMemo(() => {
+    if (
+      navigationGoal &&
+      navigationGoal.frame_id === "wgs84" &&
+      gps &&
+      gps.latitude !== null &&
+      gps.longitude !== null
+    ) {
+      const dist = getLatLngDistance(
+        Number(gps.latitude),
+        Number(gps.longitude),
+        Number(navigationGoal.latitude || navigationGoal.x),
+        Number(navigationGoal.longitude || navigationGoal.y)
+      );
+      return Number.isFinite(dist) ? dist : null;
+    }
+    return navigation.distanceRemaining;
+  }, [gps, navigationGoal, navigation.distanceRemaining]);
 
   const navigationBusy = NAVIGATION_BUSY_STATUSES.includes(
     navigation.status
@@ -107,6 +148,14 @@ export default function App() {
         setServerConnected(false);
         setRobotConnected(false);
         setLaserScan(null);
+        setNodeStatuses({
+          wifi: "Offline",
+          imu: "Offline",
+          esp32: "Offline",
+          gps: "Offline",
+          lidar: "Offline",
+          navigation: "Offline"
+        });
 
         if (!componentDestroyed) {
           reconnectTimerRef.current = window.setTimeout(
@@ -118,6 +167,14 @@ export default function App() {
     }
 
     function processMessage(message) {
+      if (
+        message.type === "node_statuses" &&
+        message.robot_id === ROBOT_ID
+      ) {
+        setNodeStatuses(message.statuses);
+        return;
+      }
+
       if (
         message.type === "robot_status" &&
         message.robot_id === ROBOT_ID
@@ -142,14 +199,75 @@ export default function App() {
       if (message.type === "telemetry") {
         console.log("[Telemetry]:", message);
         setBattery(message.battery);
+
+        const newLat = Number(message.latitude);
+        const newLon = Number(message.longitude);
+
         setGps({
-          latitude: message.latitude,
-          longitude: message.longitude,
+          latitude: newLat,
+          longitude: newLon,
           altitude: message.altitude,
           status: message.gps_status,
           rtk_status: message.rtk_status,
         });
+
+        // Record history of coordinates
+        if (Number.isFinite(newLat) && Number.isFinite(newLon) && newLat !== 0 && newLon !== 0) {
+          setGpsHistory((prev) => {
+            if (prev.length === 0) {
+              return [[newLat, newLon]];
+            }
+            const lastPoint = prev[prev.length - 1];
+            const dist = getLatLngDistance(lastPoint[0], lastPoint[1], newLat, newLon);
+            if (dist > 0.2) {
+              const updated = [...prev, [newLat, newLon]];
+              if (updated.length > 2000) {
+                updated.shift();
+              }
+              return updated;
+            }
+            return prev;
+          });
+        }
+
+        // Compute GPS navigation feedback locally if goal is active
+        if (navigationGoal && navigationGoal.frame_id === "wgs84") {
+          const goalLat = navigationGoal.latitude || navigationGoal.x;
+          const goalLon = navigationGoal.longitude || navigationGoal.y;
+          const dist = getLatLngDistance(
+            message.latitude,
+            message.longitude,
+            goalLat,
+            goalLon
+          );
+
+          setNavigation((current) => ({
+            ...current,
+            status: current.status === "sending_goal" ? "navigating" : current.status,
+            distanceRemaining: dist,
+          }));
+        }
         return;
+      }
+      if (message.type === "navigation_result") {
+        console.log("[Goal Status]:", message);
+        setNavigation((current) => ({
+          ...current,
+          status: message.status ?? current.status,
+        }));
+        if (message.status === "succeeded") {
+          setNavigationGoal(null);
+          alert("ถึงจุดหมายแล้ว")
+        }
+        if (message.status === "failed") {
+          alert("ส่งภารกิจไม่สำเร็จ")
+        }
+        if (message.status === "canceled") {
+          alert("ยกเลิกภารกิจ")
+        }
+        if (message.status === "aborted") {
+          alert("ยกเลิกภารกิจ")
+        }
       }
 
       if (message.type === "laser_scan") {
@@ -216,8 +334,18 @@ export default function App() {
             message.message ??
             "",
         }));
+
+        if (message.status === "succeeded") {
+          alert("🎉 หุ่นยนต์เดินทางถึงจุดหมายปลายทางเรียบร้อยแล้ว!");
+        } else if (message.status === "failed") {
+          alert(`⚠️ การนำทางล้มเหลว: ${message.error_msg || message.message || ""}`);
+        } else if (message.status === "canceled") {
+          alert("⏹️ การนำทางถูกยกเลิก");
+        }
+
         setControlMode("manual");
         setPath(null);
+        setNavigationGoal(null); // Reset/Clear goal for new one
       }
     }
 
@@ -280,6 +408,7 @@ export default function App() {
       return;
     }
     setControlMode("auto");
+    setGpsHistory([]); // Clear history on start navigation
 
     let payload;
     if (navigationGoal.frame_id === "wgs84") {
@@ -332,6 +461,20 @@ export default function App() {
       status: "emergency_stop",
     }));
     setControlMode("manual");
+  }
+
+  function clearGoal() {
+    setNavigationGoal(null);
+    setNavigation({
+      status: "idle",
+      distanceRemaining: null,
+      estimatedTimeRemainingSec: null,
+      navigationTimeSec: null,
+      recoveries: null,
+      message: "",
+    });
+    setControlMode("manual");
+    setGpsHistory([]); // Clear history on clear goal
   }
 
   return (
@@ -396,10 +539,12 @@ export default function App() {
           gps={gps}
           robotPose={robotPose}
           sendRobotMessage={sendRobotMessage}
+          gpsHistory={gpsHistory}
         />
       )}
       {activeTab === "dashboard" && (
         <Dashboard
+          nodeStatuses={nodeStatuses}
           battery={battery}
           gps={gps}
           robotPose={robotPose}
@@ -411,16 +556,21 @@ export default function App() {
           mapMode={mapMode}
           setMapMode={setMapMode}
           occupancyGrid={occupancyGrid}
-          navigation={navigation}
+          navigation={{
+            ...navigation,
+            distanceRemaining: computedDistanceRemaining
+          }}
           serverConnected={serverConnected}
           robotConnected={robotConnected}
           startNavigation={startNavigation}
           cancelNavigation={cancelNavigation}
           emergencyStop={emergencyStop}
+          onClearGoal={clearGoal}
           socketRef={socketRef}
           ROBOT_ID={ROBOT_ID}
           controlMode={controlMode}
           setControlMode={setControlMode}
+          gpsHistory={gpsHistory}
         />
       )}
     </main>

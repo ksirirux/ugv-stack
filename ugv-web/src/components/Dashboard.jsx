@@ -6,6 +6,7 @@ import NavigationPanel from "./NavigationPanel";
 import RobotControl from "./RobotControl";
 
 export default function Dashboard({
+  nodeStatuses,
   battery,
   gps,
   robotPose,
@@ -26,10 +27,58 @@ export default function Dashboard({
   socketRef,
   ROBOT_ID,
   controlMode,
-  setControlMode
+  setControlMode,
+  onClearGoal,
+  gpsHistory
 }) {
   return (
     <>
+      <section className="node-status-bar" style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
+        gap: '12px',
+        marginBottom: '20px'
+      }}>
+        {Object.entries(nodeStatuses || {}).map(([nodeName, status]) => {
+          let statusColor = '#64748b'; // gray (offline)
+          let bgColor = '#ffffff';
+          let borderStyle = '1px solid #e2e8f0';
+
+          if (status === 'OK') {
+            statusColor = '#10b981'; // green
+            bgColor = '#f0fdf4';
+            borderStyle = '1px solid #bbf7d0';
+          } else if (status === 'Error') {
+            statusColor = '#ef4444'; // red
+            bgColor = '#fef2f2';
+            borderStyle = '1px solid #fecaca';
+          }
+
+          return (
+            <div key={nodeName} style={{
+              display: 'flex',
+              flexDirection: 'column',
+              padding: '12px 14px',
+              borderRadius: '12px',
+              background: bgColor,
+              border: borderStyle,
+              boxShadow: '0 2px 8px rgb(15 23 42 / 4%)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textTransform: 'uppercase',
+              transition: 'all 0.3s ease'
+            }}>
+              <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', marginBottom: '4px', letterSpacing: '0.05em' }}>
+                {nodeName === 'esp32' ? 'ESP32 (MOTORS)' : nodeName}
+              </span>
+              <strong style={{ fontSize: '15px', color: statusColor, fontWeight: '800' }}>
+                {status}
+              </strong>
+            </div>
+          );
+        })}
+      </section>
+
       <section className="telemetry-grid">
         <TelemetryCard
           title="Battery"
@@ -73,7 +122,7 @@ export default function Dashboard({
           label="Color Camera"
           topic="/camera/camera/color/image_raw"
           ip="192.168.1.184"
-          port={8080}
+          port={8081}
         />
         <CameraStream
           label="Depth Camera"
@@ -117,6 +166,7 @@ export default function Dashboard({
               navigationGoal={navigationGoal}
               onGoalSelected={setNavigationGoal}
               goalSelectionDisabled={navigationBusy}
+              gpsHistory={gpsHistory}
             />
           ) : (
             <div className="map-card" style={{ minHeight: '650px', background: '#1f2937', padding: '10px', borderRadius: '8px' }}>
@@ -146,7 +196,7 @@ export default function Dashboard({
             onStart={startNavigation}
             onCancel={cancelNavigation}
             onEmergencyStop={emergencyStop}
-            onClearGoal={() => setNavigationGoal(null)}
+            onClearGoal={onClearGoal}
           />
 
           <RobotControl

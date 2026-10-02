@@ -7,13 +7,15 @@ export default defineConfig({
   server: {
     host: "0.0.0.0",
     port: 5175,
+    allowedHosts:["app.tat-ugv.com"],
+
     watch: {
       usePolling: true
     },
 
     proxy: {
       "/api": {
-        target: process.env.BACKEND_URL || "http://127.0.0.1:8080",
+        target: process.env.BACKEND_URL || "http://127.0.0.1:8087",
         changeOrigin: true,
         secure: false
       }

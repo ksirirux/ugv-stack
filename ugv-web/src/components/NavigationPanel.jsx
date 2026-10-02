@@ -90,7 +90,7 @@ export default function NavigationPanel({
                 <button
                     type="button"
                     className="emergency-button"
-                    disabled={!serverConnected || !robotConnected}
+                    disabled={!serverConnected}
                     onClick={onEmergencyStop}
                 >
                     EMERGENCY STOP

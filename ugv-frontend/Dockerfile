@@ -3,5 +3,5 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
-EXPOSE 8087
-CMD ["npx", "nodemon", "server.js"]
+EXPOSE 5177
+CMD ["npm", "run", "dev"]

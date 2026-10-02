@@ -83,7 +83,7 @@ function MapController({ setMapRef }) {
     return null;
 }
 
-export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
+export default function JobPlanner({ gps, robotPose, sendRobotMessage, gpsHistory }) {
     const defaultCenter = [16.394486, 99.620452]; // Bangkok default
     const mapCenter = gps && gps.latitude !== null ? [gps.latitude, gps.longitude] : defaultCenter;
 
@@ -890,6 +890,7 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                 transit_length_m: transitLength
             }
         };
+        console.log(pathMessage);
 
         if (sendRobotMessage(pathMessage)) {
             alert("ส่งภารกิจเส้นทางไปยังรถเรียบร้อย!");
@@ -1711,6 +1712,26 @@ export default function JobPlanner({ gps, robotPose, sendRobotMessage }) {
                                 iconSize: [16, 16],
                                 iconAnchor: [8, 8]
                             })}
+                        />
+                    )}
+
+                    {/* UGV Location Marker */}
+                    {hasGps && (
+                        <Marker position={[gps.latitude, gps.longitude]} icon={robotMarkerIcon}>
+                            <Popup>
+                                <strong>พิกัดรถ UGV</strong><br />
+                                Lat: {gps.latitude.toFixed(6)}<br />
+                                Lng: {gps.longitude.toFixed(6)}<br />
+                                RTK: {gps.rtk_status}
+                            </Popup>
+                        </Marker>
+                    )}
+
+                    {/* UGV walking history */}
+                    {gpsHistory && gpsHistory.length > 0 && (
+                        <Polyline
+                            positions={gpsHistory}
+                            pathOptions={{ color: '#ec4899', weight: 3, opacity: 0.8 }}
                         />
                     )}
 

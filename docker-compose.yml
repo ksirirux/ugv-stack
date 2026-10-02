@@ -1,4 +1,4 @@
-version: '3.8'
+#version: '3.8'
 
 services:
   server:
@@ -6,24 +6,27 @@ services:
     build:
       context: ./server
     ports:
-      - "8080:8080"
+      - "8087:8087"
     environment:
-      - ROSBRIDGE_URL=ws://192.168.1.129:9090
-      - VISION_API_URL=http://vision-backend:8001
-      # - ROSBRIDGE_URL=ws://host.docker.internal:9090
+      - VISION_API_URL=http://vision-backend:8007
+      
+    volumes:
+      - ./server:/app
+      - /app/node_modules
     depends_on:
       - vision-backend
+      - mongodb
 
   web:
-    container_name: ugv-web
+    container_name: ugv-frontend
     build:
-      context: ./ugv-web
+      context: ./ugv-frontend
     ports:
-      - "5175:5175"
+      - "5177:5177"
     environment:
-      - BACKEND_URL=http://server:8080
+      - BACKEND_URL=http://server:8087
     volumes:
-      - ./ugv-web:/app
+      - ./ugv-frontend:/app
       - /app/node_modules
     depends_on:
       - server
@@ -33,4 +36,18 @@ services:
     build:
       context: ./ugv_vision_backend_orchard
     ports:
-      - "8001:8001"
+      - "8007:8007"
+
+  mongodb:
+    image: mongo:latest
+    container_name: ugv-mongodb
+    command: ["mongod", "--auth", "--bind_ip_all"]
+    restart: always
+    ports:
+      - "27027:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=ugv_admin
+      - MONGO_INITDB_ROOT_PASSWORD=Tonkla0709
+    volumes:
+      - /data/docker/ugv/mongodb:/data/db
+
