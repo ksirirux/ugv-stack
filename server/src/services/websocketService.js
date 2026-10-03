@@ -525,7 +525,7 @@ export function initWebSocket(server) {
                 role: user.role,
                 username: user.username
               };
-              console.log('[websocketService-decodedUser]: ', decodedUser);
+              
               socket.user = decodedUser;
               console.log(`[WS Auth] App connected & authenticated: ${user.username} (${user.role}) for robot ${robot_id}`);
             } catch (err) {
@@ -534,7 +534,7 @@ export function initWebSocket(server) {
               socket.close();
               return;
             }
-            
+            console.log('[websocketService-decodedUser]: ', decodedUser);
              // Check if user owns robot
             const robot = await Robot.findOne({ robot_id: robot_id, owner: decodedUser.id });
             if (!robot) {
