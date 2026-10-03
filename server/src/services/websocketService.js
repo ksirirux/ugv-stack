@@ -436,7 +436,7 @@ export function initWebSocket(server) {
               role: user.role,
               username: user.username
             };
-            console.log('[websocketService-decodedUser]: ', decodedUser);
+            
             socket.user = decodedUser;
             console.log(`[WS Auth] Browser connected & authenticated: ${user.username} (${user.role})`);
           } catch (err) {
@@ -525,6 +525,7 @@ export function initWebSocket(server) {
                 role: user.role,
                 username: user.username
               };
+              console.log('[websocketService-decodedUser]: ', decodedUser);
               socket.user = decodedUser;
               console.log(`[WS Auth] App connected & authenticated: ${user.username} (${user.role}) for robot ${robot_id}`);
             } catch (err) {
