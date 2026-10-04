@@ -681,8 +681,18 @@ export function initWebSocket(server) {
       }
 
       if (socket.clientType === "browser" || socket.clientType === "app") {
-        if (message.type === "cmd_vel" || message.type === "navigation") {
-          const robotId = message.robot_id || "ugv-01";
+        const allowedCommands = [
+          "cmd_vel", "navigation", "navigate_to_gps", "cancel_navigation",
+          "pause_navigation", "resume_navigation", "path", "path_planner",
+          "servo_cmd", "video_mode"
+        ];
+        
+        if (allowedCommands.includes(message.type)) {
+          const robotId = message.robot_id || socket.robotId;
+          if (!robotId) {
+              console.log(`[WS Command Denied] Missing robot_id for ${message.type}`);
+              return;
+            }
           
           // Verify browser permission to send controls
           const ownerId = robotOwners.get(robotId);
@@ -693,7 +703,11 @@ export function initWebSocket(server) {
 
           const robotSocket = clients.robots.get(robotId);
           if (robotSocket) {
-            sendJson(robotSocket, message);
+            console.log(`[WS Command] ${message.type} -> ${robotId}`);
+            sendJson(robotSocket, {
+              ...message,
+              robot_id: robotId,
+            });
           }
         }
 
